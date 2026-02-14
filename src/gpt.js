@@ -1,8 +1,8 @@
 import { buf as crc32 } from "crc-32"
-import { bytes, int32, string, struct, uint32, uint64 } from "./tiny-struct/index";
+import { bytes, int32, string, struct, uint32, uint64 } from "./tiny-struct/index.js";
 
-import { createLogger } from "./logger";
-import { guid, utf16cstring } from "./gpt-structs";
+import { createLogger } from "./logger.js";
+import { guid, utf16cstring } from "./gpt-structs.js";
 
 const SIGNATURE = "EFI PART";
 const TYPE_EFI_UNUSED = "00000000-0000-0000-0000-000000000000";

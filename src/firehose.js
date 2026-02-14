@@ -1,6 +1,6 @@
-import { concatUint8Array, containsBytes, compareStringToBytes, runWithTimeout } from "./utils"
-import { createLogger } from "./logger"
-import { toXml, xmlParser } from "./xml"
+import { concatUint8Array, containsBytes, compareStringToBytes, runWithTimeout } from "./utils.js"
+import { createLogger } from "./logger.js"
+import { toXml, xmlParser } from "./xml.js"
 
 const logger = createLogger("firehose")
 

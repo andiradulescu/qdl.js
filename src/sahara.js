@@ -1,9 +1,9 @@
-import { custom, struct, uint32 } from "./tiny-struct/index";
+import { custom, struct, uint32 } from "./tiny-struct/index.js";
 
-import { cmd_t, sahara_mode_t, status_t, exec_cmd_t } from "./saharaDefs"
-import { containsBytes, packGenerator, runWithTimeout } from "./utils";
-import { createLogger } from "./logger";
-import { toXml } from "./xml";
+import { cmd_t, sahara_mode_t, status_t, exec_cmd_t } from "./saharaDefs.js"
+import { containsBytes, packGenerator, runWithTimeout } from "./utils.js";
+import { createLogger } from "./logger.js";
+import { toXml } from "./xml.js";
 
 // parse uint64 but cast to Number
 const uint64 = () => custom(8, (buffer, offset, littleEndian) => {

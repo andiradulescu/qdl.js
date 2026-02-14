@@ -1,8 +1,8 @@
-import { Firehose } from "./firehose"
-import { GPT } from "./gpt"
-import { Sahara } from "./sahara";
-import * as Sparse from "./sparse";
-import { createLogger } from "./logger";
+import { Firehose } from "./firehose.js"
+import { GPT } from "./gpt.js"
+import { Sahara } from "./sahara.js";
+import * as Sparse from "./sparse.js";
+import { createLogger } from "./logger.js";
 
 const logger = createLogger("qdl");
 

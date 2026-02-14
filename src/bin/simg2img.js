@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync, writeFileSync } from "node:fs";
-import * as Sparse from "../sparse";
+import * as Sparse from "../sparse.js";
 
 export async function simg2img(inputPath, outputPath) {
   const sparseImage = new Blob([readFileSync(inputPath)]);
