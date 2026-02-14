@@ -1,31 +1,30 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
+import { readFileSync, writeFileSync } from "node:fs";
 import * as Sparse from "../sparse";
 
 export async function simg2img(inputPath, outputPath) {
-  const sparseImage = Bun.file(inputPath);
-  const outputImage = Bun.file(outputPath);
+  const sparseImage = new Blob([readFileSync(inputPath)]);
 
   const sparse = await Sparse.from(sparseImage);
   if (!sparse) throw "Failed to parse sparse file";
 
-  // FIXME: write out a "sparse" file? not supported by Bun
-  const writer = outputImage.writer({ highWaterMark: 4 * 1024 * 1024 });
+  const chunks = [];
   for await (const [_, chunk, size] of sparse.read()) {
     if (chunk) {
-      writer.write(await chunk.arrayBuffer());
+      chunks.push(new Uint8Array(await chunk.arrayBuffer()));
     } else {
-      writer.write(new Uint8Array(size).buffer);
+      chunks.push(new Uint8Array(size));
     }
   }
-  writer.end();
+  writeFileSync(outputPath, Buffer.concat(chunks));
 }
 
-if (import.meta.main) {
-  if (Bun.argv.length < 4) {
-    throw "Usage: simg2img.js <input_path> <output_path>";
+if (process.argv[1] === new URL(import.meta.url).pathname) {
+  if (process.argv.length < 4) {
+    throw "Usage: simg2img <input_path> <output_path>";
   }
   const startTime = performance.now();
-  await simg2img(Bun.argv[2], Bun.argv[3]);
+  await simg2img(process.argv[2], process.argv[3]);
   const endTime = performance.now();
   console.info(`Done in ${((endTime - startTime) / 1000).toFixed(3)}s`);
 }

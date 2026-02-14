@@ -1,4 +1,5 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
+import { readFileSync } from "node:fs";
 import arg from "arg";
 
 import { createProgress, createQdl } from "../cli";
@@ -86,7 +87,7 @@ if (command === "reset") {
   if (commandArgs.length !== 2) throw "Usage: qdl.js repairgpt <lun> <image>";
   const lun = Number.parseInt(commandArgs[0], 10);
   if (Number.isNaN(lun)) throw "Expected physical partition number";
-  const image = Bun.file(commandArgs[1]);
+  const image = new Blob([readFileSync(commandArgs[1])]);
   await qdl.repairGpt(lun, image);
 } else if (command === "erase") {
   if (commandArgs.length !== 1) {
@@ -101,7 +102,7 @@ if (command === "reset") {
     process.exit(1);
   }
   const [partitionName, imageName] = commandArgs;
-  const image = Bun.file(imageName);
+  const image = new Blob([readFileSync(imageName)]);
   await qdl.flashBlob(partitionName, image, createProgress(image.size));
 } else {
   console.error(`Unrecognized command: ${commands[0]}`);
