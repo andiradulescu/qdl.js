@@ -1,7 +1,10 @@
 {
-  "name": "@commaai/qdl",
+  "name": "qdl",
   "version": "0.1.0",
   "license": "MIT",
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "main": "dist/qdl.js",
   "types": "dist/qdl.d.ts",

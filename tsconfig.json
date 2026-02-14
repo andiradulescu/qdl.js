@@ -17,6 +17,7 @@
     "declaration": true,
     "sourceMap": true,
     "incremental": true,
+    "tsBuildInfoFile": ".tsbuildinfo",
     // TODO: enable after disabling allowJs
     // "isolatedDeclarations": true,
 
