@@ -3,7 +3,7 @@
  * @module
  */
 
-import type { FieldType } from "./field-types";
+import type { FieldType } from "./field-types.js";
 
 type Simplify<T> = { [K in keyof T]: T[K] } & {};
 

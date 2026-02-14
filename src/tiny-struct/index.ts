@@ -1,5 +1,5 @@
-export { struct } from "./struct-core";
-export type { StructOptions, ExtractType, StructType } from "./struct-core";
+export { struct } from "./struct-core.js";
+export type { StructOptions, ExtractType, StructType } from "./struct-core.js";
 
 export {
   bytes,
@@ -14,5 +14,5 @@ export {
   string,
   cstring,
   custom
-} from "./field-types";
-export type { FieldType } from "./field-types";
+} from "./field-types.js";
+export type { FieldType } from "./field-types.js";
