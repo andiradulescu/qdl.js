@@ -1,4 +1,4 @@
-import { custom, struct, uint32 } from "@incognitojam/tiny-struct";
+import { custom, struct, uint32 } from "./tiny-struct/index";
 
 import { cmd_t, sahara_mode_t, status_t, exec_cmd_t } from "./saharaDefs"
 import { containsBytes, packGenerator, runWithTimeout } from "./utils";

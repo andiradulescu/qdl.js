@@ -29,6 +29,6 @@
     "noUnusedParameters": true,
     "noPropertyAccessFromIndexSignature": true
   },
-  "include": ["src/**/*.js"],
+  "include": ["src/**/*.js", "src/**/*.ts"],
   "exclude": ["src/**/*.spec.js", "demo", "dist", "node_modules"],
 }

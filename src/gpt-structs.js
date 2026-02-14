@@ -1,4 +1,4 @@
-import { bytes, custom, string, struct, uint32, uint64 } from "@incognitojam/tiny-struct";
+import { bytes, custom, string, struct, uint32, uint64 } from "./tiny-struct/index";
 
 
 /**
