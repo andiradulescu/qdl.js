@@ -1,5 +1,51 @@
 # qdl.js
 
+JavaScript implementation of the Qualcomm EDL (Emergency Download) / QDL protocol. Works in both browser (WebUSB) and desktop (Node.js, Bun) environments.
+
+## CLI
+
+```sh
+npx @andiradulescu/qdl <command> [...flags] [...args]
+```
+
+Or install globally:
+
+```sh
+npm install -g @andiradulescu/qdl
+qdl <command> [...flags] [...args]
+```
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `reset` | Reboot the device |
+| `getactiveslot` | Get the active slot |
+| `setactiveslot <slot>` | Set the active slot (a or b) |
+| `getstorageinfo` | Print UFS information |
+| `printgpt` | Print GPT luns and partitions |
+| `repairgpt <lun> <image>` | Repair GPT by flashing primary table and creating backup table |
+| `erase <partition>` | Erase a partition |
+| `flash <partition> <image>` | Flash an image to a partition |
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--programmer <url>` | Use a different loader (default is comma 3/3X) |
+| `--log-level, -l <level>` | Set log level: silent, error, warn, info, debug (default: info) |
+| `-h, --help` | Display help and exit |
+
+## Library
+
+```sh
+npm install @andiradulescu/qdl
+```
+
+```js
+import { qdlDevice } from "@andiradulescu/qdl";
+```
+
 ## Development
 
 ```sh
