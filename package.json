@@ -32,8 +32,8 @@
     "lint": "biome lint"
   },
   "bin": {
-    "simg2img.js": "dist/bin/simg2img.js",
-    "qdl.js": "dist/bin/qdl.js"
+    "simg2img": "dist/bin/simg2img.js",
+    "qdl": "dist/bin/qdl.js"
   },
   "//devDependencies": {
     "@biomejs/biome": "code linter and formatter",
