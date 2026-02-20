@@ -107,7 +107,7 @@ export class qdlDevice {
       return backupGpt;
     }
     if (!partEntriesConsistency) {
-      logger.warn(`LUN ${lun}: Primary and backup GPT part entries are inconsistent, using primary`);
+      logger.debug(`LUN ${lun}: Primary and backup GPT part entries are inconsistent, using primary`);
       // TODO: create backup from primary
     }
     return primaryGpt;
