@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-import { readFileSync, writeFileSync } from "node:fs";
+import { openAsBlob, writeFileSync } from "node:fs";
 import * as Sparse from "../sparse.js";
 
 export async function simg2img(inputPath, outputPath) {
-  const sparseImage = new Blob([readFileSync(inputPath)]);
+  const sparseImage = await openAsBlob(inputPath);
 
   const sparse = await Sparse.from(sparseImage);
   if (!sparse) throw "Failed to parse sparse file";
