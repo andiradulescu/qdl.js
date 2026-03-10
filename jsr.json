@@ -1,0 +1,11 @@
+{
+  "name": "@andiradulescu/qdl",
+  "version": "0.1.0",
+  "license": "MIT",
+  "exports": {
+    ".": "./dist/qdl.js",
+    "./cli": "./dist/cli.js",
+    "./usblib": "./dist/usblib.js",
+    "./utils": "./dist/utils.js"
+  }
+}
