@@ -128,8 +128,18 @@ export class qdlDevice {
     // Fix the partition table, expanding last partition to fill available sectors
     await this.firehose.cmdFixGpt(lun, 1);
 
-    // Read back GPT and create backup copy
+    // Read back GPT and fix primary header CRC
+    // (cmdFixGpt modifies partition entries but doesn't update the header CRC)
     const primaryGpt = await this.getGpt(lun, 1n);
+    const primaryPartEntries = primaryGpt.buildPartEntries();
+    const primaryHeader = primaryGpt.buildHeader(primaryPartEntries);
+
+    logger.debug("Writing primary GPT header to LBA 1");
+    if (!await this.firehose.cmdProgram(lun, 1n, new Blob([primaryHeader]))) {
+      throw new Error("Failed to write primary GPT header");
+    }
+
+    // Create backup copy
     const backupGpt = primaryGpt.asAlternate();
     const backupPartEntries = backupGpt.buildPartEntries();
     const backupHeader = backupGpt.buildHeader(backupPartEntries);
