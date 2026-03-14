@@ -24,6 +24,7 @@ Commands:
   repairgpt <lun> <image>              Repair GPT by flashing primary table and creating backup table
   erase <partition>                    Erase a partition
   flash <partition> <image>            Flash an image to a partition
+  testroundtrip                        Test GPT entry parse/serialize round-trip on all LUNs
 
 Slot suffixes (_a/_b) are auto-detected from the active slot when omitted.
 
@@ -123,6 +124,52 @@ if (command === "reset") {
   }
   const image = Bun.file(imageName);
   await qdl.flashBlob(partitionName, image, createProgress(image.size));
+} else if (command === "testroundtrip") {
+  const { buf: crc32 } = await import("crc-32");
+  const { GPT } = await import("../gpt.js");
+  const sectorSize = qdl.firehose.cfg.SECTOR_SIZE_IN_BYTES;
+  let allMatch = true;
+
+  for (const lun of qdl.firehose.luns) {
+    const gpt = new GPT(sectorSize);
+    const headerData = await qdl.firehose.cmdReadBuffer(lun, 1n, 1);
+    if (!gpt.parseHeader(headerData, 1n)) {
+      console.info(`LUN ${lun}: no valid GPT`);
+      continue;
+    }
+
+    const rawEntries = await qdl.firehose.cmdReadBuffer(lun, gpt.partEntriesStartLba, gpt.partEntriesSectors);
+    gpt.parsePartEntries(rawEntries);
+    const roundTripped = gpt.buildPartEntries();
+
+    const crcLen = gpt.numPartEntries * gpt.partEntrySize;
+    const rawCrc = crc32(rawEntries.subarray(0, crcLen));
+    const rtCrc = crc32(roundTripped);
+
+    if (rawCrc === rtCrc) {
+      console.info(`LUN ${lun}: OK (${gpt.numPartEntries} entries)`);
+      continue;
+    }
+
+    allMatch = false;
+    console.error(`LUN ${lun}: MISMATCH — raw CRC ${rawCrc} vs round-trip CRC ${rtCrc}`);
+    for (let i = 0; i < crcLen; i++) {
+      if (rawEntries[i] !== roundTripped[i]) {
+        const entryIdx = Math.floor(i / gpt.partEntrySize);
+        const byteOff = i % gpt.partEntrySize;
+        let field = "unknown";
+        if (byteOff < 16) field = "type GUID";
+        else if (byteOff < 32) field = "unique GUID";
+        else if (byteOff < 40) field = "firstLba";
+        else if (byteOff < 48) field = "lastLba";
+        else if (byteOff < 56) field = "attributes";
+        else field = "name";
+        console.error(`  entry[${entryIdx}] byte ${byteOff} (${field}): raw=0x${rawEntries[i].toString(16).padStart(2, "0")} rt=0x${roundTripped[i].toString(16).padStart(2, "0")}`);
+      }
+    }
+  }
+
+  if (allMatch) console.info("All LUNs OK");
 } else {
   console.error(`Unrecognized command: ${commands[0]}`);
   console.info(`\n${help}`);
