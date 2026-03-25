@@ -2,6 +2,24 @@
 import arg from "arg";
 
 import { createProgress, createQdl } from "../cli";
+import { readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+
+const GIT_REV = (() => {
+  // Walk up from src/bin/ looking for a bun.lock with the resolved commit hash
+  let dir = import.meta.dir;
+  for (let i = 0; i < 10; i++) {
+    try {
+      const content = readFileSync(join(dir, "bun.lock"), "utf-8");
+      const match = content.match(/qdl\.js#([a-f0-9]+)/);
+      if (match) return match[1];
+    } catch {}
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return "unknown";
+})();
 
 const args = arg({
   "--help": Boolean,
@@ -34,6 +52,7 @@ Flags:
   -h, --help                           Display this menu and exit`;
 
 if (args["--help"] || commands.length === 0) {
+  console.info(`qdl.js (${GIT_REV})\n`);
   console.info(help);
   process.exit(0);
 }
