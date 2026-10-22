@@ -1,61 +1,12 @@
-import { custom, struct, uint32 } from "@incognitojam/tiny-struct";
-
 import { cmd_t, sahara_mode_t, status_t, exec_cmd_t } from "./saharaDefs"
 import { containsBytes, packGenerator, runWithTimeout } from "./utils";
 import { createLogger } from "./logger";
 import { toXml } from "./xml";
 
-// parse uint64 but cast to Number
-const uint64 = () => custom(8, (buffer, offset, littleEndian) => {
-  return Number(buffer.getBigUint64(offset, littleEndian));
-}, (buffer, offset, value, littleEndian) => {
-  buffer.setBigUint64(offset, value, littleEndian);
-});
-
-const CommandHandler = {
-  pkt_cmd_hdr: struct("pkt_cmd_hdr", {
-    cmd: uint32(),
-    len: uint32(),
-  }, { littleEndian: true }),
-  pkt_hello_req: struct("pkt_hello_req", {
-    cmd: uint32(),
-    len: uint32(),
-    version: uint32(),
-    version_supported: uint32(),
-    cmd_packet_length: uint32(),
-    mode: uint32(),
-    reserved1: uint32(),
-    reserved2: uint32(),
-    reserved3: uint32(),
-    reserved4: uint32(),
-    reserved5: uint32(),
-    reserved6: uint32(),
-  }, { littleEndian: true }),
-  pkt_image_end: struct("pkt_image_end", {
-    cmd: uint32(),
-    len: uint32(),
-    image_id: uint32(),
-    image_tx_status: uint32(),
-  }, { littleEndian: true }),
-  pkt_done: struct("pkt_done", {
-    cmd: uint32(),
-    len: uint32(),
-    image_tx_status: uint32(),
-  }, { littleEndian: true }),
-  pkt_read_data_64: struct("pkt_read_data_64", {
-    cmd: uint32(),
-    len: uint32(),
-    image_id: uint64(),
-    data_offset: uint64(),
-    data_len: uint64(),
-  }, { littleEndian: true }),
-  pkt_execute_rsp_cmd: struct("pkt_execute_rsp_cmd", {
-    cmd: uint32(),
-    len: uint32(),
-    client_cmd: uint32(),
-    data_len: uint32(),
-  }, { littleEndian: true }),
-};
+/** @param {DataView} view */
+function readCommandHeader(view) {
+  return { cmd: view.getUint32(0, true), len: view.getUint32(4, true) };
+}
 
 const logger = createLogger("sahara");
 
@@ -81,7 +32,7 @@ export class Sahara {
     let resp = await runWithTimeout(respPromise, 500).catch(() => new Uint8Array());
     if (resp.length > 1) {
       if (resp[0] === 0x01) {
-        const pkt = CommandHandler.pkt_cmd_hdr.from(resp);
+        const pkt = readCommandHeader(new DataView(resp.buffer, resp.byteOffset, resp.byteLength));
         if (pkt.cmd === cmd_t.SAHARA_HELLO_REQ) {
           return "sahara";
         }
@@ -141,21 +92,43 @@ export class Sahara {
       if (dataText.includes("<?xml")) {
         return { "firehose": "yes" };
       }
-      const pkt = CommandHandler.pkt_cmd_hdr.from(data);
+      const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+      const pkt = readCommandHeader(view);
       if (pkt.cmd === cmd_t.SAHARA_HELLO_REQ) {
-        return { "cmd": pkt.cmd, "data": CommandHandler.pkt_hello_req.from(data) };
+        return { "cmd": pkt.cmd, "data": {
+          ...pkt,
+          version: view.getUint32(8, true),
+          version_supported: view.getUint32(12, true),
+          cmd_packet_length: view.getUint32(16, true),
+          mode: view.getUint32(20, true),
+          reserved1: view.getUint32(24, true),
+          reserved2: view.getUint32(28, true),
+          reserved3: view.getUint32(32, true),
+          reserved4: view.getUint32(36, true),
+          reserved5: view.getUint32(40, true),
+          reserved6: view.getUint32(44, true),
+        } };
       }
       if (pkt.cmd === cmd_t.SAHARA_DONE_RSP) {
-        return { "cmd": pkt.cmd, "data": CommandHandler.pkt_done.from(data) };
+        return { "cmd": pkt.cmd, "data": { ...pkt, image_tx_status: view.getUint32(8, true) } };
       }
       if (pkt.cmd === cmd_t.SAHARA_END_TRANSFER) {
-        return { "cmd": pkt.cmd, "data": CommandHandler.pkt_image_end.from(data) };
+        return { "cmd": pkt.cmd, "data": {
+          ...pkt, image_id: view.getUint32(8, true), image_tx_status: view.getUint32(12, true),
+        } };
       }
       if (pkt.cmd === cmd_t.SAHARA_64BIT_MEMORY_READ_DATA) {
-        return { "cmd": pkt.cmd, "data": CommandHandler.pkt_read_data_64.from(data) };
+        return { "cmd": pkt.cmd, "data": {
+          ...pkt,
+          image_id: Number(view.getBigUint64(8, true)),
+          data_offset: Number(view.getBigUint64(16, true)),
+          data_len: Number(view.getBigUint64(24, true)),
+        } };
       }
       if (pkt.cmd === cmd_t.SAHARA_EXECUTE_RSP) {
-        return { "cmd": pkt.cmd, "data": CommandHandler.pkt_execute_rsp_cmd.from(data) };
+        return { "cmd": pkt.cmd, "data": {
+          ...pkt, client_cmd: view.getUint32(8, true), data_len: view.getUint32(12, true),
+        } };
       }
       if (pkt.cmd === cmd_t.SAHARA_CMD_READY || pkt.cmd === cmd_t.SAHARA_RESET_RSP) {
         return { "cmd": pkt.cmd, "data": null };

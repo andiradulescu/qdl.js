@@ -105,6 +105,96 @@ const LUN4_PARTITIONS = [
 ];
 
 
+describe("GPT binary serialization", () => {
+  for (const sectorSize of [512, 4096]) {
+    test(`round-trips GUIDs, UTF-16, and 64-bit fields with ${sectorSize}-byte sectors`, () => {
+      const { header, entries } = buildGPTData([{ name: "bööt_🚗", attributes: 0xFEDCBA9876543210n }]);
+      const type = Uint8Array.from(Buffer.from("33221100554477668899aabbccddeeff", "hex"));
+      const uuid = Uint8Array.from(Buffer.from("98badcfe54761032fedcba9876543210", "hex"));
+      entries.set(type, 0);
+      entries.set(uuid, 16);
+      const ev = new DataView(entries.buffer);
+      ev.setBigUint64(32, 0xFFFFFFFFFFFFFFF0n, true);
+      ev.setBigUint64(40, 0xFFFFFFFFFFFFFFFFn, true);
+      const hv = new DataView(header.buffer);
+      hv.setUint32(20, 0x89ABCDEF, true);
+      hv.setBigUint64(32, 0xFFFFFFFFFFFFFFFFn, true);
+      hv.setBigUint64(48, 0xFFFFFFFFFFFFFFFEn, true);
+      header.set(uuid, 56);
+      hv.setInt32(88, crc32(entries), true);
+      hv.setInt32(16, 0, true);
+      hv.setInt32(16, crc32(header.subarray(0, 92)), true);
+
+      const storage = new Uint8Array(header.length + entries.length + 19).fill(0xA5);
+      storage.set(header, 7);
+      storage.set(entries, 7 + header.length);
+      const before = storage.slice();
+      const gpt = new GPT(sectorSize);
+      expect(gpt.parseHeader(storage.subarray(7, 7 + sectorSize), 1n).mismatchCrc32).toBe(false);
+      expect(gpt.parsePartEntries(storage.subarray(7 + header.length, 7 + header.length + entries.length))
+        .mismatchCrc32).toBe(false);
+      expect(gpt.alternateLba).toBe(0xFFFFFFFFFFFFFFFFn);
+      expect(gpt.lastUsableLba).toBe(0xFFFFFFFFFFFFFFFEn);
+      expect(gpt.getPartitions()).toEqual([{
+        name: "bööt_🚗", type: "00112233-4455-6677-8899-aabbccddeeff",
+        uuid: "fedcba98-7654-3210-fedc-ba9876543210", start: 0xFFFFFFFFFFFFFFF0n,
+        end: 0xFFFFFFFFFFFFFFFFn, sectors: 16n, attributes: "0xfedcba9876543210",
+      }]);
+      expect(gpt.buildPartEntries()).toEqual(entries);
+      expect(gpt.buildHeader()).toEqual(header.subarray(0, 92));
+      expect(storage).toEqual(before);
+    });
+  }
+
+  test("alternate GPT updates and serialization do not modify the primary", () => {
+    const { header, entries } = buildGPTData([{ name: "boot_a" }, { name: "boot_b" }]);
+    const primary = new GPT(SECTOR_SIZE);
+    primary.parseHeader(header, 1n);
+    primary.parsePartEntries(entries);
+    const alternate = primary.asAlternate();
+    expect(alternate.currentLba).toBe(0xFFFFn);
+    expect(alternate.alternateLba).toBe(1n);
+    expect(alternate.partEntriesStartLba).toBe(0xFFFEn);
+    alternate.setActiveSlot("b");
+    expect(alternate.getActiveSlot()).toBe("b");
+    alternate.buildHeader();
+    expect(primary.buildPartEntries()).toEqual(entries);
+    expect(primary.buildHeader()).toEqual(header.subarray(0, 92));
+  });
+
+  test("rejects truncated views even when their backing buffers contain complete data", () => {
+    const { header, entries } = buildGPTData([{ name: "boot_a" }]);
+    for (let length = 0; length < 92; length++) {
+      expect(() => new GPT(SECTOR_SIZE).parseHeader(header.subarray(0, length), 1n)).toThrow(RangeError);
+    }
+    for (let length = 0; length < 56; length++) {
+      const gpt = new GPT(SECTOR_SIZE);
+      gpt.parseHeader(header, 1n);
+      expect(() => gpt.parsePartEntries(entries.subarray(0, length))).toThrow(RangeError);
+    }
+  });
+
+  test("preserves the current 35-code-unit limit when serializing a full partition name", () => {
+    const name = "x".repeat(36);
+    const { header, entries } = buildGPTData([{ name }]);
+    const gpt = new GPT(SECTOR_SIZE);
+    gpt.parseHeader(header, 1n);
+    const warn = console.warn;
+    console.warn = () => undefined;
+    try {
+      expect(gpt.parsePartEntries(entries).mismatchCrc32).toBe(true);
+    } finally {
+      console.warn = warn;
+    }
+    expect(gpt.getPartitions()[0].name).toBe(name);
+    const expected = entries.slice();
+    expected[126] = 0;
+    expected[127] = 0;
+    expect(gpt.buildPartEntries()).toEqual(expected);
+  });
+});
+
+
 describe("GPT", () => {
   describe.each([0, 1, 2, 3, 4, 5])("LUN %d", async (lun) => {
     /** @type {GPT} */

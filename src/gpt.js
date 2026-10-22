@@ -1,8 +1,7 @@
 import { buf as crc32 } from "crc-32"
-import { bytes, int32, string, struct, uint32, uint64 } from "@incognitojam/tiny-struct";
 
 import { createLogger } from "./logger";
-import { guid, utf16cstring } from "./gpt-structs";
+import { readHeader, writeHeader, readPartitionEntry, writePartitionEntry } from "./gpt-structs";
 
 const SIGNATURE = "EFI PART";
 const TYPE_EFI_UNUSED = "00000000-0000-0000-0000-000000000000";
@@ -28,43 +27,6 @@ const logger = createLogger("gpt");
 
 
 /**
- * @see {@link https://uefi.org/specs/UEFI/2.10/05_GUID_Partition_Table_Format.html#gpt-header}
- */
-const GPTHeader = struct("GPTHeader", {
-  signature: string(8),
-  revision: uint32(),
-  headerSize: uint32(),
-  headerCrc32: int32(),
-  reserved: uint32(),
-  currentLba: uint64(),
-  alternateLba: uint64(),
-  firstUsableLba: uint64(),
-  lastUsableLba: uint64(),
-  diskGuid: bytes(16),
-  partEntriesStartLba: uint64(),
-  numPartEntries: uint32(),
-  partEntrySize: uint32(),
-  partEntriesCrc32: int32(),
-}, { littleEndian: true });
-
-
-/**
- * @see {@link https://uefi.org/specs/UEFI/2.10/05_GUID_Partition_Table_Format.html#gpt-partition-entry-array}
- */
-const GPTPartitionEntry = struct("GPTPartitionEntry", {
-  type: guid(),
-  unique: guid(),
-  startingLba: uint64(),
-  endingLba: uint64(),
-  /**
-   * @see {@link https://uefi.org/specs/UEFI/2.10/05_GUID_Partition_Table_Format.html#defined-gpt-partition-entry-attributes}
-   */
-  attributes: uint64(),
-  name: utf16cstring(36),
-}, { littleEndian: true });
-
-
-/**
  * @typedef {Object} Partition
  * @property {string} type
  * @property {string} uuid
@@ -77,9 +39,9 @@ const GPTPartitionEntry = struct("GPTPartitionEntry", {
 
 
 export class GPT {
-  /** @type {ReturnType<typeof GPTHeader.from>} */
+  /** @type {ReturnType<typeof readHeader>} */
   #header;
-  /** @type {(ReturnType<typeof GPTPartitionEntry.from>)[]} */
+  /** @type {(ReturnType<typeof readPartitionEntry>)[]} */
   #partEntries = [];
 
   /** @param {number} sectorSize */
@@ -133,7 +95,7 @@ export class GPT {
    * @returns {{ headerCrc32: number; mismatchCrc32: boolean } | null}
    */
   parseHeader(data, actualLba) {
-    this.#header = GPTHeader.from(data.slice());
+    this.#header = readHeader(data.slice());
     if (this.#header.signature !== SIGNATURE) {
       logger.error(`Invalid signature: "${this.#header.signature}"`);
       return null;
@@ -152,7 +114,7 @@ export class GPT {
 
     const expectedHeaderCrc32 = this.#header.headerCrc32;
     this.#header.headerCrc32 = 0;
-    const actualHeaderCrc32 = crc32(new Uint8Array(this.#header.$toBuffer()));
+    const actualHeaderCrc32 = crc32(writeHeader(this.#header));
     this.#header.headerCrc32 = expectedHeaderCrc32;
 
     const mismatchCrc32 = this.#header.headerCrc32 !== actualHeaderCrc32;
@@ -170,7 +132,7 @@ export class GPT {
     const entrySize = this.#header.partEntrySize;
     for (let i = 0; i < this.#header.numPartEntries; i++) {
       const entryOffset = i * entrySize;
-      const partEntry = GPTPartitionEntry.from(data.slice(entryOffset, entryOffset + entrySize));
+      const partEntry = readPartitionEntry(data.slice(entryOffset, entryOffset + entrySize));
       this.#partEntries.push(partEntry);
     }
 
@@ -184,14 +146,14 @@ export class GPT {
 
   /** @returns {GPT} */
   asAlternate() {
-    const alternate = this.#header.$clone();
+    const alternate = { ...this.#header, diskGuid: this.#header.diskGuid.slice() };
     alternate.currentLba = this.#header.alternateLba;
     alternate.alternateLba = this.#header.currentLba;
     alternate.partEntriesStartLba = this.#header.alternateLba - BigInt(this.partEntriesSectors);
 
     const gpt = new GPT(this.sectorSize);
     gpt.#header = alternate;
-    gpt.#partEntries = this.#partEntries.map((partEntry) => partEntry.$clone());
+    gpt.#partEntries = this.#partEntries.map((partEntry) => ({ ...partEntry }));
     return gpt;
   }
 
@@ -199,7 +161,7 @@ export class GPT {
   buildPartEntries() {
     const array = new Uint8Array(this.numPartEntries * this.partEntrySize);
     for (let i = 0; i < this.numPartEntries; i++) {
-      array.set(new Uint8Array(this.#partEntries[i].$toBuffer()), i * this.partEntrySize);
+      array.set(writePartitionEntry(this.#partEntries[i]), i * this.partEntrySize);
     }
     return array;
   }
@@ -216,13 +178,13 @@ export class GPT {
     logger.debug(`partEntriesCrc32: ${this.#header.partEntriesCrc32}`);
 
     this.#header.headerCrc32 = 0;
-    this.#header.headerCrc32 = crc32(new Uint8Array(this.#header.$toBuffer()));
+    this.#header.headerCrc32 = crc32(writeHeader(this.#header));
     logger.debug(`headerCrc32: ${this.#header.headerCrc32}`);
     if (this.#header.headerCrc32 === 0) {
       throw new Error("Failed to build GPT header: headerCrc32 is zero");
     }
 
-    return new Uint8Array(this.#header.$toBuffer());
+    return writeHeader(this.#header);
   }
 
   /** @returns {Partition[]} */
